@@ -4,39 +4,48 @@
 #  MKA Test Package Builder + Deployment Test
 # ===========================================
 # Run this on your Mac. It will:
-#   1. Build a real (empty) .pkg installer
+#   1. Build a .pkg that opens mk-analytics.com when installed
 #   2. Print its SHA-256 hash
 #   3. Give you upload instructions
 #   4. Optionally test a public URL once uploaded
 #
 # Usage:
-#   ./build_and_test.sh            # Build the dummy .pkg
+#   ./build_and_test.sh            # Build the .pkg
 #   ./build_and_test.sh --test <URL>   # Test a public URL
 
 MODE=$1
 URL=$2
 
 # -----------------------------------------------
-# MODE 1: Build the dummy .pkg (default)
+# MODE 1: Build the .pkg (default)
 # -----------------------------------------------
 if [ -z "$MODE" ]; then
 
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
     BUILD_DIR="/tmp/mka_pkg_build"
-    OUTPUT_PKG="/tmp/MKASetup_test.pkg"
+    OUTPUT_PKG="$SCRIPT_DIR/MKASetup_test.pkg"
 
     echo "========================================="
-    echo "  Step 1: Building Dummy .pkg Installer"
+    echo "  Step 1: Building MKA Test Package"
     echo "========================================="
     echo ""
 
-    # Create build directories
+    # Clean up any previous build
+    rm -rf "$BUILD_DIR"
     mkdir -p "$BUILD_DIR/root"
     mkdir -p "$BUILD_DIR/scripts"
 
-    # Create a do-nothing postinstall script
+    # Create postinstall script that opens mk-analytics.com
     cat > "$BUILD_DIR/scripts/postinstall" << 'EOF'
 #!/bin/bash
-echo "MKA test package installed successfully."
+
+# Open the MKA onboarding page for the current logged-in user
+CURRENT_USER=$(stat -f "%Su" /dev/console)
+
+if [ -n "$CURRENT_USER" ] && [ "$CURRENT_USER" != "root" ]; then
+    sudo -u "$CURRENT_USER" open "https://mk-analytics.com"
+fi
+
 exit 0
 EOF
     chmod +x "$BUILD_DIR/scripts/postinstall"
@@ -65,20 +74,19 @@ EOF
     echo ""
 
     echo "========================================="
-    echo "  Step 2: Upload to a New Public GitHub Repo"
+    echo "  Step 2: Upload to GitHub"
     echo "========================================="
     echo ""
-    echo "  1. Go to https://github.com/new"
-    echo "  2. Name it something like: mka-deployment-test"
-    echo "  3. Set visibility to PUBLIC"
-    echo "  4. Click 'Create repository'"
-    echo "  5. Go to Releases → 'Create a new release'"
-    echo "  6. Tag: v1.0-test"
-    echo "  7. Upload: $OUTPUT_PKG as a release asset"
-    echo "  8. Publish the release"
+    echo "  1. Go to your Test_Public repo on GitHub"
+    echo "  2. Go to Releases → Edit your existing release"
+    echo "  3. Delete the old MKASetup_test.pkg"
+    echo "  4. Upload: $OUTPUT_PKG (same folder as this script)"
+    echo "  5. Click Update release"
     echo ""
-    echo "  Your URL will look like:"
-    echo "  https://github.com/MK-Analytics/mka-deployment-test/releases/download/v1.0-test/MKASetup_test.pkg"
+    echo "  Then update ABM with:"
+    echo "  Bundle ID:  mka.onboarding.install"
+    echo "  Version:    1.0"
+    echo "  SHA-256:    $HASH"
     echo ""
     echo "========================================="
     echo "  Step 3: Test the URL"
@@ -137,19 +145,25 @@ elif [ "$MODE" == "--test" ] && [ -n "$URL" ]; then
     echo ""
 
     # Open
-    echo "Step 4: Opening package installer..."
-    open "$DOWNLOAD_PATH"
-    echo "✅ Installer launched — you should see the macOS install prompt"
+    echo "Step 4: Installing package..."
+    sudo installer -pkg "$DOWNLOAD_PATH" -target /
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ Package installed — mk-analytics.com should open in your browser"
+    else
+        echo "❌ Installation failed"
+        exit 1
+    fi
 
     echo ""
     echo "========================================="
     echo "  ✅ All checks passed!"
-    echo "  Public URL works. Update ABM with your"
-    echo "  real .pkg URL when ready."
+    echo "  Update ABM with your real .pkg URL"
+    echo "  when ready."
     echo "========================================="
 
 else
     echo "Usage:"
-    echo "  ./build_and_test.sh               # Build dummy .pkg + upload instructions"
+    echo "  ./build_and_test.sh               # Build .pkg + upload instructions"
     echo "  ./build_and_test.sh --test <URL>  # Test a public URL"
 fi
