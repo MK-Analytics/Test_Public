@@ -54,7 +54,7 @@ EOF
     pkgbuild \
         --root "$BUILD_DIR/root" \
         --scripts "$BUILD_DIR/scripts" \
-        --identifier mka.onboarding.install \
+        --identifier mka.onboarding.test2 \
         --version 1.0 \
         --install-location /tmp \
         "$OUTPUT_PKG"
